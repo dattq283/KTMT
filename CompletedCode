@@ -1,0 +1,706 @@
+.model small
+.stack 100h
+.data          
+    line1 db  "*--------------------------------------------*$"
+    linea db  "|  _    ___    __ _     __       _ ___ _  _  |$"
+    line2 db  "| |_)|V| |    /  |_||  /  | ||  |_| | / \|_) |$"
+    line3 db  "| |_)| |_|_   \__| ||__\__|_||__| | | \_/| \ |$"
+    line4 db  "|                                            |$"
+    lineb db  "*--------------------------------------------*$"
+    
+    line5 db  "Nhan ki tu tuong ung de chon chuc nang $"
+    line6 db  "1. Tinh chi so BMI$"        
+    line7 db  "2. Gioi thieu$"
+    line8 db  "3. Danh sach thanh vien nhom$"
+    line9 db  "4. Thoat$"
+ 
+    blank1 db "                                                                                $"
+    gthieu db  "Danh sach thanh vien trong nhom $"
+    TV1 db  "1. Nguyen Tuan Anh$"        
+    TV2 db  "2. Tran Tuan Duong$"
+    TV3 db  "3. Trinh Quoc Dat$"
+    TV4 db  "4. Pham Duy Cuong$"
+    quit db  "Nhan phim bat ki de quay tro ve man hinh chinh$"
+    
+    
+    ; Messages for user input
+    welcomeMsg      db "      BMI CALCULATOR PROGRAM", 0Dh, 0Ah, "$"
+    weightPrompt    db "Nhap can nang (kg): $"
+    heightPrompt    db "Nhap chieu cao (cm): $"
+    genderPrompt    db "Nhap gioi tinh (M/W): $"
+    invalidGender   db "Gioi tinh khong hop le ! Vui long nhap lai.", 0Dh, 0Ah, "$"
+    errorMsg        db "Loi: Dau vao khong hop le hoac phep chia loi!", 0Dh, 0Ah, "$"
+    
+    ; BMI result messages
+    bmiResult       db "Chi so BMI cua ban: $"
+    bmiDecimal      db ".$"
+    
+    ; BMI classification messages (WHO standard)
+    underweightMsg  db "Phan loai: Thieu can$"
+    normalMsg       db "Phan loai: Binh thuong$"
+    overweightMsg   db "Phan loai: Thua can$"
+    obeseClass1Msg  db "Phan loai: Beo phi do I$"
+    obeseClass2Msg  db "Phan loai: Beo phi do II$"
+    obeseClass3Msg  db "Phan loai: Beo phi do III$"
+    
+    ; Afterward
+    continue db "Nhap so 1 de tinh toan lai$"
+    return db "Nhap cac phim con lai de quay tro ve man hinh chinh$"
+    
+    ; Gioi thieu
+    dong1 db "Chi so BMI (Body Mass Index - Chi so khoi co the) la mot cong cu pho bien dung de danh gia tinh trang cua mot nguoi dua tren chieu cao va can nang$"
+    dong2 db "Cong thuc tinh BMI: BMI = Can nang (kg) / (Chieu cao(m))^2 $"
+    dong3 db "Bang phan loai dua tren chi so BMI:$"
+    dong4 db "Duoi 18.5: Thieu can$"
+    dong5 db "18.5 - 24.9: Binh thuong$"
+    dong6 db "25 - 29.9: Thua can$"
+    dong7 db "30 - 34.9: Beo phi do I$"
+    dong8 db "35 - 39.9: Beo phi do II$"
+    dong9 db "40+: Beo phi do III$"
+    
+    ; Variables for calculation
+    weight          dw 1    ; Weight in kg (default 1 to avoid div by zero)
+    height          dw 1    ; Height in cm (default 1 to avoid div by zero)
+    bmi             dw 0    ; BMI result (integer part)
+    bmiDecimalPart  dw 0    ; BMI decimal part
+    gender          db 'M'  ; 'M' or 'W' (default M)
+    
+    ; Buffer for number input
+    inputBuffer     db 6 dup(0)
+    
+    ; New line
+    newLine         db 0Dh, 0Ah, "$"
+.code
+
+gotoxy macro x y
+    mov ah, 02h
+    mov bh, 00h
+    mov dl,x  ; Cot
+    mov dh,y  ; Dong
+    int 10h
+endm
+
+clrscr:
+    mov ah, 06h      ; h?m Scroll Up Window
+    mov al, 0        ; cuon 0 dong = Xoa man hinh
+    mov bh, 1Fh      ; Mau chu - Mau nen
+    mov cx, 0000h    ; toa do goc tren ben trai
+    mov dx, 184Fh    ; toa do goc duoi ben phai
+    int 10h          
+    ret
+
+printColoredString proc
+    push ax
+    push cx
+    push si
+
+    mov si, dx       
+printCharLoop:
+    mov al, [si]     
+    cmp al, '$'      
+    je endPrintColored
+
+    mov ah, 09h      
+    mov bh, 0        
+    mov cx, 1        ; In 1 k? t?
+    int 10h          ; In k? t? v?i m?u trong BL
+
+    ; Di chuy?n con tr? sang ph?i
+    mov ah, 03h      ; L?y v? tr? con tr? hi?n t?i
+    int 10h          ; S? d?ng int 10h thay v? int 21h
+    inc dl           ; Tang c?t (di chuy?n sang ph?i)
+    mov ah, 02h      ; ??t v? tr? con tr?
+    int 10h
+
+    inc si           ; Chuy?n d?n k? t? ti?p theo
+    jmp printCharLoop
+
+endPrintColored:
+    pop si
+    pop cx
+    pop ax
+    ret
+printColoredString endp
+
+main:
+    mov ax,@data
+    mov ds,ax
+    
+    ; Thiet lap color cho background
+    call intro_screen
+    
+
+intro_screen:
+    call clrscr 
+    
+    gotoxy 19 2
+    mov ah,9
+    lea dx,line1
+    int 21h
+    
+    gotoxy 19 3
+    mov ah,9
+    lea dx,linea
+    int 21h
+    
+    
+    gotoxy 19 4
+    mov ah,9
+    lea dx,line2
+    int 21h
+    
+    
+    gotoxy 19 5
+    mov ah,9
+    lea dx,line3
+    int 21h
+    
+    gotoxy 19 6
+    mov ah,9
+    lea dx,line4
+    int 21h
+    
+    gotoxy 19 7
+    mov ah,9
+    lea dx,lineb
+    int 21h
+    
+    
+    gotoxy 22 10
+    mov ah,9
+    lea dx,line5
+    int 21h
+    
+    gotoxy 26 12
+    mov ah,9
+    lea dx,line6
+    int 21h
+    
+    gotoxy 26 14
+    mov ah,9
+    lea dx,line7
+    int 21h
+    
+    gotoxy 26 16
+    mov ah,9
+    lea dx,line8
+    int 21h
+    
+    gotoxy 26 18
+    mov ah,9
+    lea dx,line9
+    int 21h
+    
+    
+    jmp input_case
+
+input_case:
+    mov ah,08h
+    int 21h
+    
+    cmp al, '1'
+    jb input_case
+    
+    cmp al, '9'
+    ja input_case
+    
+    cmp al,'1'
+    je CASE1
+    
+    cmp al,'2'
+    je CASE2
+    
+    cmp al,'3'
+    je CASE3
+    
+    cmp al,'4'
+    je CASE4
+    
+    
+CASE1:
+    call clrscr
+    ; Get weight input
+    gotoxy 17 3
+    lea dx, weightPrompt
+    call printString
+    call readNumber
+    cmp ax, 0        ; Check if weight is zero or invalid
+    jle errorHandler
+    mov weight, ax
+    
+    ; Get height input
+    gotoxy 17 5
+    lea dx, heightPrompt
+    call printString
+    call readNumber
+    cmp ax, 0        ; Check if height is zero or invalid
+    jle errorHandler
+    mov height, ax
+    
+    ; Get gender input with validation
+; Get gender input with validation
+getGenderInput:
+    ; Position the cursor for gender prompt
+    gotoxy 17 7
+    lea dx, genderPrompt
+    call printString
+
+    ; Read 1 character from keyboard with echo
+    mov ah, 01h
+    int 21h
+    mov bl, al        ; Save the entered character
+    
+    ; Convert to uppercase if lowercase
+    cmp bl, 'a'
+    jb checkGenderValid
+    cmp bl, 'z'
+    ja checkGenderValid
+    sub bl, 32       ; Convert to uppercase
+    
+checkGenderValid:
+    ; Check if M or W
+    cmp bl, 'M'
+    je validGender
+    cmp bl, 'W'
+    je validGender
+
+    ; Invalid gender entered - display error message on a new line
+    gotoxy 17 9
+    lea dx, invalidGender
+    call printString
+    
+    ; Clear the previous input line to prevent artifacts
+    gotoxy 17 7
+    lea dx, blank1   ; Use your blank line string to clear the previous input
+    call printString
+    
+    jmp getGenderInput
+    
+validGender:
+    mov gender, bl   ; Store the validated gender (now in BL)
+    
+    ; Print newline after gender input
+    lea dx, newLine
+    call printString
+    
+    ; Tính BMI = (10000 / height) * weight / height
+    mov bx, height  ; chuyen gia tri bien height vao thanh ghi BX
+    cmp bx, 0  ; so sanh gia tri o BX voi 0
+    je errorHandler; neu bx = 0 => phep chia voi 0 ko hop le
+                    ;=> chuyen den errorHandler de xu ly loi
+
+    mov ax, 10000 ;nap so 10000 vao AX (so 10000 nay de chuyen doi chieu cao(cm) trong cong thuc)
+    
+    xor dx, dx; dat thanh ghi DX =0 truoc khi thuc hien phep chia DX : AX
+    div bx    ; chia (DX: AX) cho BX. Ket qua: phan nguyen vao AX con phan du thi vao DX
+              ;(o day khong can de y den viec tran so vi da so sanh BX o tren)
+    mov bx, weight ;chuyen gia tri cua bien weight vao thanh ghi BX
+    mul bx  ; thuc hien phep nhan khong dau AX voi BX luu ket qua vao DX: AX
+            ;theo co che lenh MUL, neu ket qua vua 16 bit thi DX =0 nguoc lai thi DX != 0;
+    cmp dx, 0; so sanh DX voi 0 de xem ket qua co tran khong
+    jne errorHandler ;neu khac 0 thi chuyen ve errorHandler de xu ly loi
+    
+    mov bx, height
+    cmp bx, 0
+    je errorHandler
+    div bx
+    mov bmi, ax
+    
+    ; Calculate decimal part (for display)
+    mov ax, dx
+    mov bx, 100
+    mul bx        ; AX = remainder * 100
+    
+    mov bx, height
+    div bx        ; AX = decimal part
+    mov bmiDecimalPart, ax
+    
+    ; Display BMI result
+    gotoxy 17 11
+    lea dx, bmiResult
+    call printString
+    
+    ; Display integer part
+    mov ax, bmi
+    call printNumber
+    
+    ; Display decimal point and decimal part
+    lea dx, bmiDecimal
+    call printString
+    mov ax, bmiDecimalPart
+    call printNumber
+    
+    ; Display BMI classification based on WHO standards
+    ; Different standards for males and females
+    gotoxy 17 13
+    mov al, gender
+    cmp al, 'M'
+    je maleBMIClassification
+    
+    ; Female BMI classification
+    mov ax, bmi
+    cmp ax, 18    ; Less than 18.5 (using integer comparison)
+    jl underweight
+    cmp ax, 25    ; 18.5 - 24.9
+    jl normal
+    cmp ax, 30    ; 25 - 29.9
+    jl overweight
+    cmp ax, 35    ; 30 - 34.9
+    jl obeseClass1
+    cmp ax, 40    ; 35 - 39.9
+    jl obeseClass2
+    jmp obeseClass3  ; 40+
+    
+maleBMIClassification:
+    ; Male BMI classification (same thresholds as female according to WHO)
+    mov ax, bmi
+    cmp ax, 18    ; Less than 18.5
+    jl underweight
+    cmp ax, 25    ; 18.5 - 24.9
+    jl normal
+    cmp ax, 30    ; 25 - 29.9
+    jl overweight
+    cmp ax, 35    ; 30 - 34.9
+    jl obeseClass1
+    cmp ax, 40    ; 35 - 39.9
+    jl obeseClass2
+    jmp obeseClass3  ; 40+
+    
+underweight:
+              
+    lea dx, underweightMsg
+    mov bl, 1Ch      ; M?u do sang tren nen xanh
+    call printColoredString
+    
+    lea dx, newLine
+    call printString ; In d?ng m?i v?i m?u m?c d?nh
+    
+    call afterward
+    ret
+    
+    
+normal:
+              
+    lea dx, normalMsg
+    mov bl, 1Ah      
+    call printColoredString
+    
+    lea dx, newLine
+    call printString 
+    
+    call afterward
+    ret
+    
+overweight:
+             
+    lea dx, overweightMsg
+    mov bl, 1Eh      
+    call printColoredString
+    
+    lea dx, newLine
+    call printString 
+    
+    call afterward
+    ret
+    
+obeseClass1:
+             
+    lea dx, obeseClass1Msg
+    mov bl, 16h      
+    call printColoredString
+    
+    lea dx, newLine
+    call printString 
+    
+    call afterward
+    ret
+    
+obeseClass2:
+    
+    
+    lea dx, obeseClass2Msg
+    mov bl, 1Ch      
+    call printColoredString
+    
+    lea dx, newLine
+    call printString 
+    
+    call afterward
+    ret
+    
+obeseClass3:
+              
+    lea dx, obeseClass3Msg
+    mov bl, 14h      
+    call printColoredString
+    
+    lea dx, newLine
+    call printString 
+    
+    call afterward
+    ret
+    
+errorHandler:
+    lea dx, errorMsg
+    call printString
+    call afterward
+    ret
+    
+; Procedure to print a string
+printString proc
+    mov ah, 09h
+    int 21h
+    ret
+printString endp
+
+; Procedure to read a number from keyboard
+readNumber proc
+    xor bx, bx       ; Clear BX for accumulation
+    xor cx, cx
+readNumber endp       ; Clear digit counter
+    
+readLoop:
+    ; Read character
+    mov ah, 01h
+    int 21h
+    
+    ; Check for Enter key
+    cmp al, 13
+    je endReadNumber
+    
+    ; Check if digit
+    cmp al, '0'
+    jb readLoop      ; If below '0', ignore
+    cmp al, '9'
+    ja readLoop      ; If above '9', ignore
+    
+    ; Convert to digit and add to result
+    sub al, '0'
+    xor ah, ah       ; Clear AH
+    
+    ; Save current value
+    push ax
+    
+    ; Multiply current result by 10
+    mov ax, 10
+    mul bx           ; DX:AX = BX * 10
+    
+    ; Check for overflow
+    cmp dx, 0
+    jne readOverflow
+    
+    mov bx, ax       ; BX = old value * 10
+    
+    ; Add new digit
+    pop ax
+    add bx, ax
+    
+    ; Check for overflow or negative value (carry bit)
+    jc readOverflow
+    
+    ; Increment digit counter
+    inc cx
+    cmp cx, 5        ; Max 5 digits
+    jge endReadNumber
+    
+    jmp readLoop
+    
+readOverflow:
+    ; Handle overflow - clear stack and return max value
+    cmp cx, 0
+    je clearStack
+    pop ax
+    
+clearStack:
+    mov bx, 9999     ; Return max safe value
+    jmp endReadNumber
+    
+endReadNumber:
+    mov ax, bx       ; Return value in AX
+    ret
+
+
+; Procedure to print a number
+printNumber proc
+   ; Save registers
+    push bx
+    push cx
+    push dx
+    
+    mov bx, 10       ; Divisor
+    mov cx, 0        ; Digit counter
+    
+    ; Handle zero specially
+    test ax, ax
+    jnz convertLoop
+    mov dl, '0'
+    mov ah, 02h
+    int 21h
+    jmp finishPrintNumber
+    
+convertLoop:
+    ; Check if number is zero
+    test ax, ax
+    jz printLoop
+    
+    ; Divide by 10
+    mov dx, 0
+    div bx           ; AX = quotient, DX = remainder
+    
+    ; Convert remainder to ASCII and push to stack
+    push dx
+    inc cx           ; Increment digit counter
+    
+    jmp convertLoop
+printLoop:
+    ; Pop digits from stack and print
+    test cx, cx
+    jz finishPrintNumber
+    
+    pop dx
+    add dl, '0'      ; Convert to ASCII
+    mov ah, 02h
+    int 21h
+    
+    dec cx
+    jmp printLoop
+    
+finishPrintNumber:
+    ; Restore registers
+    pop dx
+    pop cx
+    pop bx
+    ret
+printNumber endp
+    ret
+    
+afterward:
+    gotoxy 17 19
+    mov ah,9
+    lea dx, continue
+    int 21h
+    
+    gotoxy 17 21
+    mov ah,9
+    lea dx,return
+    int 21h
+    
+    mov ah,08h
+    int 21h
+    mov bl,al
+    
+    cmp bl, '1'
+    je CASE1
+    
+    jmp intro_screen
+
+    
+CASE2:
+    call clrscr
+    
+    gotoxy 1 1
+    mov ah,9
+    lea dx,dong1
+    int 21h
+    
+    gotoxy 1 5
+    mov ah,9
+    lea dx,dong2
+    int 21h
+    
+    gotoxy 1 8
+    mov ah,9
+    lea dx,dong3
+    int 21h
+    
+    gotoxy 15 10
+    lea dx, dong4
+    mov bl, 1Ch      
+    call printColoredString
+    
+    gotoxy 15 12
+    lea dx, dong5
+    mov bl, 1Ah      
+    call printColoredString
+    
+    
+    gotoxy 15 14
+    lea dx, dong6
+    mov bl, 1Eh      
+    call printColoredString
+    
+    gotoxy 15 16
+    lea dx, dong7
+    mov bl, 16h      
+    call printColoredString
+    
+    gotoxy 15 18
+    lea dx, dong8
+    mov bl, 1Ch      
+    call printColoredString
+    
+    gotoxy 15 20
+    lea dx, dong9
+    mov bl, 14h      
+    call printColoredString
+    
+    gotoxy 20 23
+    mov ah,9
+    lea dx,quit
+    int 21h
+    
+    mov ah,08h
+    int 21h
+    
+    jmp intro_screen
+    
+    ret
+        
+
+CASE3:
+    call clrscr
+    
+    gotoxy 22 5
+    mov ah,9
+    lea dx,gthieu
+    int 21h
+    
+    gotoxy 27 8
+    mov ah,9  
+    lea dx,TV1
+    int 21h
+    
+    gotoxy 27 11
+    mov ah,9
+    lea dx,TV2
+    int 21h
+    
+    gotoxy 27 14
+    mov ah,9
+    lea dx,TV3
+    int 21h
+    
+    gotoxy 27 17
+    mov ah,9
+    lea dx,TV4
+    int 21h
+    
+    gotoxy 20 22
+    mov ah,9
+    lea dx,quit
+    int 21h
+    
+    mov ah,08h
+    int 21h
+    mov bl,al
+    jmp intro_screen
+    
+    
+    
+
+CASE4:
+    mov ah,4ch
+    int 21h
+        
+    
+end main 
