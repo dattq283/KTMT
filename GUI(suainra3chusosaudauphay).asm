@@ -528,161 +528,146 @@ getGenderInput:
     sub bl, 32       ; Convert to uppercase
     
 checkGenderValid:
-    ; Check if M or W
     cmp bl, 'M'
     je validGender
     cmp bl, 'W'
     je validGender
 
-    ; Invalid gender entered - display error message on a new line
+
     gotoxy 17 9
     clrscr 0900h,094Fh,1Ch
     lea dx, invalidGender
     call printString
     
-    ; Clear the previous input line to prevent artifacts
     gotoxy 17 7
-    lea dx, blank1   ; Use your blank line string to clear the previous input
+    lea dx, blank1 
     call printString
     
     jmp getGenderInput
     
 validGender:
-    mov gender, bl   ; Store the validated gender (now in BL)
+    mov gender, bl  
     
-    ; Print newline after gender input
     lea dx, newLine
     call printString
     
-    ; Tính BMI = (10000 / height) * weight / height
-    mov bx, height
+    ; TÃ­nh BMI = (10000 / height) * weight / height
+ mov bx, height
 cmp bx, 0
-je errorHandler     ; Check for division by zero
+je errorHandler     
 
-; Simple BMI calculation approach
-; BMI = weight * 10000 / (height * height)
-
-; Step 1: Calculate height squared 
 mov ax, height
-mul height          ; Result in DX:AX = height * height
-                    ; For height = 182, result = 33124 (fits in AX)
+mul height         
                     
-; Check if height squared calculation overflowed
+
 test dx, dx
-jnz errorHandler    ; If DX ? 0, we have overflow
+jnz errorHandler  
 
-; Save height squared in a register for division
-mov cx, ax          ; CX = height^2 (33124 for height = 182)
 
-; Step 2: Prepare for weight * 10000 calculation
-mov ax, weight      ; AX = weight (76)
-mov bx, 10000       ; BX = 10000
+mov cx, ax          
 
-; Step 3: Calculate weight * 10000
-mul bx              ; Result in DX:AX = weight * 10000
-                    ; For weight = 76, result = 760000 (fits in DX:AX)
+mov ax, weight
+mov bx, 10000      
 
-; Step 4: Division - now need to handle 32-bit / 16-bit division
-; At this point: DX:AX = weight * 10000, CX = height^2
 
-; For safe division, first check the quotient will fit in 16 bits
+mul bx             
+
 cmp dx, 0
-je perform_division ; If DX = 0, division will fit in 16 bits
+je perform_division 
 
-; If DX > 0, compare with divisor
 cmp dx, cx
-jae errorHandler    ; If DX = CX, quotient won't fit in 16 bits
+jae errorHandler    
 
 perform_division:
-; Perform division: DX:AX / CX
-div cx              ; AX = quotient (BMI integer part), DX = remainder
 
-; Store integer part of BMI
+div cx             
+
+
 mov bmi, ax
 
-; Calculate decimal part (with better precision)
-; decimal = (remainder * 10000) / height^2
-mov ax, dx          ; AX = remainder
-mov bx, 10000       ; Multiply by 10000 for precision
-mul bx              ; DX:AX = remainder * 10000
 
-; Handle potential overflow in decimal calculation
+mov ax, dx     
+mov bx, 10000      
+mul bx             
+
+
 test dx, dx
 jnz decimal_overflow
 
-; If no overflow, proceed with division
-div cx              ; AX = decimal part, DX = new remainder
+
+div cx           
 jmp save_decimal
 
 decimal_overflow:
-; Handle overflow by approximating result
-mov ax, 999        ; Use maximum decimal value
+
+mov ax, 9999       
 
 save_decimal:
 mov bmiDecimalPart, ax
 
-; Display BMI result
+
 gotoxy 17 11
 lea dx, bmiResult
 call printString
 
-; Display integer part
+
 mov ax, bmi
 call printNumber
 
-; Display decimal point
+
 lea dx, bmiDecimal
 call printString
 
-; Display decimal part with exactly 4 digits
+
 mov ax, bmiDecimalPart
 
 
-mov bx, 1000        ; First extract thousands digit
+mov bx, 1000        
 xor dx, dx
 div bx
-mov dl, al          ; Save thousands digit in DL
-add dl, '0'         ; Convert to ASCII
-push dx             ; Save for later
+mov dl, al          
+add dl, '0'        
+push dx             
 
-; Continue with hundreds digit
-mov ax, dx          ; Get remainder
+
+mov ax, dx         
 mov bx, 100
 xor dx, dx
 div bx
-mov dl, al          ; Save hundreds digit in DL
-add dl, '0'         ; Convert to ASCII
-push dx             ; Save for later
+mov dl, al       
+add dl, '0'        
+push dx             
 
-; Continue with tens digit
-mov ax, dx          ; Get remainder
+
+mov ax, dx          
 mov bx, 10
 xor dx, dx
 div bx
-mov dl, al          ; Save tens digit in DL
-add dl, '0'         ; Convert to ASCII
-push dx             ; Save for later
+mov dl, al        
+add dl, '0'        
+push dx            
 
-; Handle ones digit
-mov dl, dl          ; Get remainder
-add dl, '0'         ; Convert to ASCII
+mov dl, dl         
+add dl, '0'        
 
-; Display all 4 digits in correct order
-; Display thousands digit
 
-; Display hundreds digit
 pop ax
 mov dl, al
 mov ah, 02h
 int 21h
 
-; Display tens digit
 pop ax
 mov dl, al
 mov ah, 02h
 int 21h
 
-; Display ones digit
+
+pop ax
+mov dl, al
+mov ah, 02h
+int 21h
+
+
 mov dl, dl
 mov ah, 02h
 int 21h
